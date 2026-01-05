@@ -1,20 +1,28 @@
+import React from 'react';
+import { View, Text } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { NavigationContainer } from '@react-navigation/native';
+import './global.css';
+
+// Contexts
+import { AuthProvider } from './src/context/AuthContext';
+import { FoodCartProvider } from './src/context/FoodCartContext';
+
+// Navigation
+import RootNavigator from './src/navigation/RootNavigator';
 
 export default function App() {
-  return (
-    <View style={styles.container}>
-      <Text>Open up App.tsx to start working on your app!</Text>
-      <StatusBar style="auto" />
-    </View>
-  );
+    return (
+        <SafeAreaProvider>
+            <AuthProvider>
+                <FoodCartProvider>
+                    <NavigationContainer>
+                        <RootNavigator />
+                        <StatusBar style="light" />
+                    </NavigationContainer>
+                </FoodCartProvider>
+            </AuthProvider>
+        </SafeAreaProvider>
+    );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
