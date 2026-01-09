@@ -66,5 +66,37 @@ export const FirestoreService = {
                 callback({ id: doc.id, ...doc.data() } as Ride);
             }
         });
+
+         // Food Orders
+ createFoodOrder: async (order: any) => {
+ const orderData = {
+ ...order,
+ estado: 'pendiente',
+ timestamp: serverTimestamp()
+ };
+ const docRef = await addDoc(collection(db, 'food_orders'), orderData);
+ return docRef.id;
+ },
+
+ updateFoodOrderStatus: async (orderId: string, status: string) => {
+ const orderRef = doc(db, 'food_orders', orderId);
+ await updateDoc(orderRef, { estado: status });
+ },
+
+ listenToFoodOrders: (userId: string, callback: (orders: any[]) => void) => {
+ const q = query(collection(db, 'food_orders'), where('userId', '==', userId));
+ return onSnapshot(q, (snapshot) => {
+ const orders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+ callback(orders);
+ });
+ },
+
+ listenToFoodOrderUpdates: (orderId: string, callback: (order: any) => void) => {
+ return onSnapshot(doc(db, 'food_orders', orderId), (doc) => {
+ if (doc.exists()) {
+ callback({ id: doc.id, ...doc.data() });
+ }
+ });
+ }
     }
 };
