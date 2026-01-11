@@ -50,16 +50,13 @@ const DriverTripsScreen = () => {
 
     // Simulate incoming trip
     // Real Firebase Logic
+    // Real Firebase Logic
     useEffect(() => {
         if (!isOnline) {
             setIncomingTrip(null);
-            setModalVisible(false); // Close modal if driver goes offline
             return;
         }
 
-        // Listen for trips with status 'requested'
-        // In a real app we would query based on geolocation (Geofire) or driverId if assigned directly
-        // For this MVP, we listen to ALL requested trips (Broadcast mode)
         const q = query(
             collection(db, "trips"),
             where("status", "==", "requested")
@@ -67,13 +64,11 @@ const DriverTripsScreen = () => {
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
             if (!snapshot.empty) {
-                const tripDoc = snapshot.docs[0]; // Take the first available trip
+                const tripDoc = snapshot.docs[0];
                 setIncomingTrip({ id: tripDoc.id, ...tripDoc.data() } as any);
-                setModalVisible(true); // Show modal when a trip comes in
                 startTimer();
             } else {
                 setIncomingTrip(null);
-                setModalVisible(false); // Hide modal if no trips or trip disappears
             }
         }, (error) => {
             console.error("Error listening to trips: ", error);
@@ -82,17 +77,16 @@ const DriverTripsScreen = () => {
         return () => unsubscribe();
     }, [isOnline]);
 
-    const intervalRef = useRef<NodeJS.Timeout | null>(null); // Renamed from timerRef
+    const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
     const startTimer = () => {
         if (intervalRef.current) clearInterval(intervalRef.current);
-        setTimeLeft(30); // Reset timer to 30 seconds
+        setTimeLeft(30);
         intervalRef.current = setInterval(() => {
             setTimeLeft((prev) => {
                 if (prev <= 1) {
                     clearInterval(intervalRef.current!);
-                    setIncomingTrip(null); // Time expired locally
-                    setModalVisible(false); // Close modal on auto-reject
+                    setIncomingTrip(null); // Time expired
                     return 0;
                 }
                 return prev - 1;
@@ -110,21 +104,19 @@ const DriverTripsScreen = () => {
                 driverId: auth.currentUser?.uid || "unknown_driver",
                 acceptedAt: serverTimestamp()
             });
-            setModalVisible(false);
+            // Navigating away automatically hides modal as component unmounts or state resets
             navigation.navigate('ActiveTrip' as never, { tripId: incomingTrip.id } as never);
+            setIncomingTrip(null); // Clear local state to prevent modal waiting
         } catch (error) {
             console.error("Error accepting trip: ", error);
             Alert.alert("Error", "No se pudo aceptar el viaje. Quizás ya fue tomado.");
             setIncomingTrip(null);
-            setModalVisible(false); // Close modal on error
         }
     };
 
     const rejectTrip = () => {
         if (intervalRef.current) clearInterval(intervalRef.current);
         setIncomingTrip(null);
-        setModalVisible(false);
-        // Optionally update trip to 'rejected_by_driver' or just ignore locally
     };
 
     return (
@@ -135,12 +127,6 @@ const DriverTripsScreen = () => {
                 <View className={`px-4 py-2 rounded-full border ${isOnline ? 'bg-green-900/80 border-green-500' : 'bg-red-900/80 border-red-500'}`}>
                     <Text className="text-white font-bold text-xs">{isOnline ? 'EN LÍNEA: Buscando...' : 'DESCONECTADO'}</Text>
                 </View>
-                <TouchableOpacity
-                    className="w-12 h-12 bg-neutral-800 rounded-full items-center justify-center border border-neutral-700 shadow-lg"
-                    onPress={simulateTrip} // For testing
-                >
-                    <Ionicons name="bug-outline" size={24} color="white" />
-                </TouchableOpacity>
             </View>
 
             {/* Main Map Background (Dark Style) */}
