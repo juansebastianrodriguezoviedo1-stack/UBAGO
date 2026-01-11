@@ -3,6 +3,8 @@ import { View, Text, TouchableOpacity, Modal, Dimensions, Image, Animated, Easin
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import { collection, query, where, onSnapshot, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { db, auth } from '../../config/firebase';
 
 const { width, height } = Dimensions.get('window');
 
@@ -47,37 +49,50 @@ const DriverTripsScreen = () => {
     };
 
     // Simulate incoming trip
-    const simulateTrip = () => {
+    // Real Firebase Logic
+    useEffect(() => {
         if (!isOnline) {
-            Alert.alert("Estás desconectado", "Conéctate para recibir viajes.");
+            setIncomingTrip(null);
+            setModalVisible(false); // Close modal if driver goes offline
             return;
         }
 
-        setIncomingTrip({
-            id: 'trip_123',
-            passenger: {
-                name: 'Ana María',
-                rating: 4.9,
-                photo: 'https://i.pravatar.cc/150?img=5'
-            },
-            origin: 'Parque Principal Ubaté',
-            destination: 'Hospital El Salvador',
-            fare: 4500,
-            distance: '2.5 km',
-            time: '8 min'
-        });
-        setTimeLeft(15);
-        startTimer();
-    };
+        // Listen for trips with status 'requested'
+        // In a real app we would query based on geolocation (Geofire) or driverId if assigned directly
+        // For this MVP, we listen to ALL requested trips (Broadcast mode)
+        const q = query(
+            collection(db, "trips"),
+            where("status", "==", "requested")
+        );
 
-    const timerRef = useRef<NodeJS.Timeout | null>(null);
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            if (!snapshot.empty) {
+                const tripDoc = snapshot.docs[0]; // Take the first available trip
+                setIncomingTrip({ id: tripDoc.id, ...tripDoc.data() } as any);
+                setModalVisible(true); // Show modal when a trip comes in
+                startTimer();
+            } else {
+                setIncomingTrip(null);
+                setModalVisible(false); // Hide modal if no trips or trip disappears
+            }
+        }, (error) => {
+            console.error("Error listening to trips: ", error);
+        });
+
+        return () => unsubscribe();
+    }, [isOnline]);
+
+    const intervalRef = useRef<NodeJS.Timeout | null>(null); // Renamed from timerRef
 
     const startTimer = () => {
-        if (timerRef.current) clearInterval(timerRef.current);
-        timerRef.current = setInterval(() => {
+        if (intervalRef.current) clearInterval(intervalRef.current);
+        setTimeLeft(30); // Reset timer to 30 seconds
+        intervalRef.current = setInterval(() => {
             setTimeLeft((prev) => {
                 if (prev <= 1) {
-                    rejectTrip(); // Auto reject
+                    clearInterval(intervalRef.current!);
+                    setIncomingTrip(null); // Time expired locally
+                    setModalVisible(false); // Close modal on auto-reject
                     return 0;
                 }
                 return prev - 1;
@@ -85,16 +100,31 @@ const DriverTripsScreen = () => {
         }, 1000);
     };
 
-    const acceptTrip = () => {
-        if (timerRef.current) clearInterval(timerRef.current);
-        setIncomingTrip(null);
-        // Navigate to Active Trip
-        navigation.navigate('ActiveTrip' as never);
+    const acceptTrip = async () => {
+        if (intervalRef.current) clearInterval(intervalRef.current);
+        if (!incomingTrip) return;
+
+        try {
+            await updateDoc(doc(db, "trips", incomingTrip.id), {
+                status: "accepted",
+                driverId: auth.currentUser?.uid || "unknown_driver",
+                acceptedAt: serverTimestamp()
+            });
+            setModalVisible(false);
+            navigation.navigate('ActiveTrip' as never, { tripId: incomingTrip.id } as never);
+        } catch (error) {
+            console.error("Error accepting trip: ", error);
+            Alert.alert("Error", "No se pudo aceptar el viaje. Quizás ya fue tomado.");
+            setIncomingTrip(null);
+            setModalVisible(false); // Close modal on error
+        }
     };
 
     const rejectTrip = () => {
-        if (timerRef.current) clearInterval(timerRef.current);
+        if (intervalRef.current) clearInterval(intervalRef.current);
         setIncomingTrip(null);
+        setModalVisible(false);
+        // Optionally update trip to 'rejected_by_driver' or just ignore locally
     };
 
     return (
