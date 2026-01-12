@@ -2,10 +2,11 @@
   "expo": {
     "name": "ubago",
     "slug": "ubago",
-"version": "1.0.0",    "orientation": "portrait",
+    "version": "1.0.0",
+    "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
-"dark"    "splash": {
+    "userInterfaceStyle": "dark",
+    "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
