@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { StatusBar } from 'expo-status-bar';
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
+import { makeRedirectUri } from 'expo-auth-session';
 import Constants, { AppOwnership } from 'expo-constants';
 
 // TODO: REPLACE THESE WITH YOUR ACTUAL CLIENT IDS FROM GOOGLE CLOUD CONSOLE
@@ -24,11 +25,32 @@ export default function LoginScreen() {
     // Detect if running in Expo Go
     const isExpoGo = Constants.appOwnership === 'expo';
 
+    // Generate Redirect URI (Use Proxy for Expo Go to avoid "exp://" rejection)
+    const redirectUri = makeRedirectUri({
+        scheme: 'ubago',
+        path: 'oauth',
+        preferLocalhost: false, // Ensure we don't get a localhost URI on device
+    });
+
+    // Log the URI so the user can add it to Google Cloud
+    useEffect(() => {
+        if (isExpoGo) {
+            // Delay slightly to ensure it renders
+            setTimeout(() => {
+                const proxyUrl = `https://auth.expo.io/@${Constants.expoConfig?.owner || 'juansebastianrodriguezoviedo1'}/${Constants.expoConfig?.slug || 'ubago'}`;
+                console.log("⚠️ ATENCIÓN: Agrega esta URI a Google Cloud:", proxyUrl);
+                // Also log the actual generated one just in case
+                console.log("Generated Redirect URI:", redirectUri);
+            }, 1000);
+        }
+    }, []);
+
     const [request, response, promptAsync] = Google.useAuthRequest({
         clientId: GOOGLE_CLIENT_IDS.web,
         // In Expo Go, we must use the Web Flow (undefined native IDs) to avoid Error 400
         iosClientId: isExpoGo ? undefined : GOOGLE_CLIENT_IDS.ios,
         androidClientId: isExpoGo ? undefined : GOOGLE_CLIENT_IDS.android,
+        redirectUri: isExpoGo ? redirectUri : undefined,
         scopes: ['profile', 'email'],
     });
 
