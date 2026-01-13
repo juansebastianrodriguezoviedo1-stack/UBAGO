@@ -25,32 +25,28 @@ export default function LoginScreen() {
     // Detect if running in Expo Go
     const isExpoGo = Constants.appOwnership === 'expo';
 
-    // Generate Redirect URI (Use Proxy for Expo Go to avoid "exp://" rejection)
-    const redirectUri = makeRedirectUri({
-        scheme: 'ubago',
-        path: 'oauth',
-        preferLocalhost: false, // Ensure we don't get a localhost URI on device
-    });
+    // Generate Redirect URI
+    // In Expo Go, we needs to use the Expo Proxy (https://auth.expo.io) because Google blocks "exp://"
+    const proxyUri = `https://auth.expo.io/@${Constants.expoConfig?.owner || 'juansebastianrodriguezoviedo1'}/${Constants.expoConfig?.slug || 'ubago'}`;
+
+    const finalRedirectUri = isExpoGo ? proxyUri : undefined;
 
     // Log the URI so the user can add it to Google Cloud
     useEffect(() => {
         if (isExpoGo) {
             // Delay slightly to ensure it renders
             setTimeout(() => {
-                const proxyUrl = `https://auth.expo.io/@${Constants.expoConfig?.owner || 'juansebastianrodriguezoviedo1'}/${Constants.expoConfig?.slug || 'ubago'}`;
-                console.log("⚠️ ATENCIÓN: Agrega esta URI a Google Cloud:", proxyUrl);
-                // Also log the actual generated one just in case
-                console.log("Generated Redirect URI:", redirectUri);
+                console.log("⚠️ ATENCIÓN: Agrega esta URI a Google Cloud:", proxyUri);
             }, 1000);
         }
-    }, []);
+    }, [isExpoGo, proxyUri]);
 
     const [request, response, promptAsync] = Google.useAuthRequest({
         clientId: GOOGLE_CLIENT_IDS.web,
         // In Expo Go, we must use the Web Flow (undefined native IDs) to avoid Error 400
         iosClientId: isExpoGo ? undefined : GOOGLE_CLIENT_IDS.ios,
         androidClientId: isExpoGo ? undefined : GOOGLE_CLIENT_IDS.android,
-        redirectUri: isExpoGo ? redirectUri : undefined,
+        redirectUri: finalRedirectUri,
         scopes: ['profile', 'email'],
     });
 
