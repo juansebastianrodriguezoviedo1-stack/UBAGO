@@ -1,12 +1,57 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Image, StatusBar as RNStatusBar } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import { StatusBar } from 'expo-status-bar';
+import * as WebBrowser from 'expo-web-browser';
+import * as Google from 'expo-auth-session/providers/google';
+
+// TODO: REPLACE THESE WITH YOUR ACTUAL CLIENT IDS FROM GOOGLE CLOUD CONSOLE
+// https://console.cloud.google.com/apis/credentials
+const GOOGLE_CLIENT_IDS = {
+    web: '270078019676-geincph1lvrine2malqqQme12ufc2p4m.apps.googleusercontent.com',
+    android: '270078019676-c4g1pmo3he60308auq91cj5e81rb746o.apps.googleusercontent.com',
+    ios: '270078019676-aqjvdftmqteg8intmp0a8aqih6dkqotm.apps.googleusercontent.com',
+};
+
+WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const { login, loading } = useAuth();
+    const { login, signInWithGoogle, loading } = useAuth();
+
+    const [request, response, promptAsync] = Google.useAuthRequest({
+        clientId: GOOGLE_CLIENT_IDS.web,
+        iosClientId: GOOGLE_CLIENT_IDS.ios,
+        androidClientId: GOOGLE_CLIENT_IDS.android,
+        redirectUri: 'ubago://oauth',
+        scopes: ['profile', 'email'],
+    });
+
+    useEffect(() => {
+        if (response?.type === 'success') {
+            const { id_token } = response.params;
+            if (id_token) {
+                // Prevent crash if signInWithGoogle fails internally
+                signInWithGoogle(id_token).catch(err => {
+                    console.error("Google Sign In Wrapper Error:", err);
+                    alert("Error iniciando sesión con Google. Intenta de nuevo.");
+                });
+            }
+        } else if (response?.type === 'error') {
+            console.error("Google Auth Session Error:", response.error);
+            alert("Error en la conexión con Google.");
+        }
+    }, [response]);
+
+    const handleGoogleLogin = async () => {
+        try {
+            await promptAsync();
+            // Auth flow is handled by the useEffect(response) hook which is more reliable for native redirects
+        } catch (e) {
+            console.error("Google login error:", e);
+        }
+    };
 
     const handleLogin = async () => {
         const cleanEmail = email.trim();
@@ -81,6 +126,14 @@ export default function LoginScreen() {
                         style={[styles.button, loading && styles.buttonDisabled]}
                     >
                         <Text style={styles.buttonText}>{loading ? 'Iniciando...' : 'INGRESAR'}</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        onPress={() => handleGoogleLogin()}
+                        disabled={!request || loading}
+                        style={[styles.googleButton, loading && styles.buttonDisabled]}
+                    >
+                        <Text style={styles.googleButtonText}>INGRESAR CON GOOGLE</Text>
                     </TouchableOpacity>
 
                     <Text style={styles.terms}>
@@ -212,4 +265,20 @@ const styles = StyleSheet.create({
         color: '#00D084',
         textDecorationLine: 'underline',
     },
+    googleButton: {
+        backgroundColor: '#fff',
+        height: 56,
+        borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginTop: 16,
+        borderWidth: 1,
+        borderColor: '#ddd',
+    },
+    googleButtonText: {
+        color: '#000',
+        fontSize: 14,
+        fontWeight: 'bold',
+        letterSpacing: 1,
+    }
 });

@@ -7,7 +7,8 @@ import { auth } from '../config/firebase';
 interface AuthContextType {
     user: User | null;
     isAuthenticated: boolean;
-    login: (email: string, pass: string) => Promise<void>; // Changed signature
+    login: (email: string, pass: string) => Promise<void>;
+    signInWithGoogle: (idToken: string) => Promise<void>;
     logout: () => void;
     loading: boolean;
 }
@@ -102,6 +103,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     };
 
+    const signInWithGoogle = async (idToken: string) => {
+        if (!idToken || typeof idToken !== 'string') {
+            console.error("Invalid ID Token passed to signInWithGoogle");
+            return;
+        }
+        setLoading(true);
+        try {
+            const { GoogleAuthProvider, signInWithCredential } = await import('firebase/auth');
+            const credential = GoogleAuthProvider.credential(idToken);
+            await signInWithCredential(auth, credential);
+        } catch (error: any) {
+            console.error("Google Sign-In Error:", error);
+            // Handle specific firebase errors if needed
+            throw error;
+        } finally {
+            // Loading state will be handled by onAuthStateChanged, but safety net:
+            // We don't set loading false here immediately if successful because onAuthStateChanged triggers
+        }
+    };
+
     const logout = () => {
         auth.signOut();
         setUser(null);
@@ -112,6 +133,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             user,
             isAuthenticated: !!user,
             login,
+            signInWithGoogle,
             logout,
             loading
         }}>
