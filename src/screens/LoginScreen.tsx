@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { StatusBar } from 'expo-status-bar';
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
+import Constants, { AppOwnership } from 'expo-constants';
 
 // TODO: REPLACE THESE WITH YOUR ACTUAL CLIENT IDS FROM GOOGLE CLOUD CONSOLE
 // https://console.cloud.google.com/apis/credentials
@@ -20,10 +21,14 @@ export default function LoginScreen() {
     const [password, setPassword] = useState('');
     const { login, signInWithGoogle, loading } = useAuth();
 
+    // Detect if running in Expo Go
+    const isExpoGo = Constants.appOwnership === 'expo';
+
     const [request, response, promptAsync] = Google.useAuthRequest({
         clientId: GOOGLE_CLIENT_IDS.web,
-        iosClientId: GOOGLE_CLIENT_IDS.ios,
-        androidClientId: GOOGLE_CLIENT_IDS.android,
+        // In Expo Go, we must use the Web Flow (undefined native IDs) to avoid Error 400
+        iosClientId: isExpoGo ? undefined : GOOGLE_CLIENT_IDS.ios,
+        androidClientId: isExpoGo ? undefined : GOOGLE_CLIENT_IDS.android,
         scopes: ['profile', 'email'],
     });
 
