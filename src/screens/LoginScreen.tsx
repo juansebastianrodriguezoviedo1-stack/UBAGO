@@ -10,7 +10,7 @@ import Constants, { AppOwnership } from 'expo-constants';
 // TODO: REPLACE THESE WITH YOUR ACTUAL CLIENT IDS FROM GOOGLE CLOUD CONSOLE
 // https://console.cloud.google.com/apis/credentials
 const GOOGLE_CLIENT_IDS = {
-    web: '270078019676-geincph1lvrine2malqqQme12ufc2p4m.apps.googleusercontent.com',
+    web: '2270078019676-geincph1lvrine2malqg0me12ufc2p4m.apps.googleusercontent.comm',
     android: '270078019676-c4g1pmo3he60308auq91cj5e81rb746o.apps.googleusercontent.com',
     ios: '270078019676-aqjvdftmqteg8intmp0a8aqih6dkqotm.apps.googleusercontent.com',
 };
