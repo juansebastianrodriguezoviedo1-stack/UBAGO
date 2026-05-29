@@ -40,8 +40,8 @@ const EditVehicleScreen = () => {
             quality: 0.5,
         });
 
-        if (!result.canceled) {
-            setVehicleData(prev => ({ ...prev, photo: result.assets[0].uri }));
+        if (!result.canceled && result.assets && result.assets.length > 0) {
+            setVehicleData(prev => ({ ...prev, photo: result.assets![0].uri }));
         }
     };
 

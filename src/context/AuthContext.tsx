@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User } from '../types';
 import { FirestoreService } from '../services/firestore.service';
-import { signInWithEmailAndPassword, onAuthStateChanged, User as FirebaseUser } from 'firebase/auth'; // Changed import
+import { signInWithEmailAndPassword, onAuthStateChanged, User as FirebaseUser, GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
 import { auth } from '../config/firebase';
 
 interface AuthContextType {
@@ -31,18 +31,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
             if (firebaseUser) {
-                // Fetch full user data
+                // Fetch full user data or CREATE if missing
                 try {
                     const userData = await FirestoreService.getUser(firebaseUser.uid);
                     if (userData) {
-                        setUser(userData);
+                        await FirestoreService.updateUserLogin(firebaseUser.uid);
+                        setUser({ ...userData, isActive: true });
                     } else {
-                        // Fallback for new users or missing docs (should be handled in registration)
-                        console.warn("User authenticated but no Firestore doc found.");
-                        setUser(null);
+                        // AUTO-REGISTER if missing (Critical Request: "Save everyone")
+                        console.warn("User authenticated but no Firestore doc found. Creating now...");
+                        const newUser: User = {
+                            uid: firebaseUser.uid,
+                            nombre: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Usuario',
+                            email: firebaseUser.email || '',
+                            telefono: firebaseUser.phoneNumber || '',
+                            role: 'passenger', // Default role for auto-registration
+                            ubicacion_actual: { latitude: 5.3086, longitude: -73.8153 }, // Ubaté default center
+                            isActive: true,
+                            createdAt: new Date(),
+                            lastLogin: new Date()
+                        };
+                        try {
+                            await FirestoreService.createUser(newUser);
+                            setUser(newUser);
+                        } catch (createError) {
+                            console.error("CRITICAL: Failed to auto-create user doc", createError);
+                            setUser(null);
+                        }
                     }
                 } catch (e) {
-                    console.error("Error fetching user data:", e);
+                    console.error("Error fetching/creating user data:", e);
                     setUser(null);
                 }
             } else {
@@ -70,32 +88,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 alert("⚠️ Credenciales incorrectas. Intenta de nuevo o verifica si el usuario existe.");
             }
 
-            // DEMO FALLBACK if Auth fails (Strictly for development speed if blocked)
-            // Remove this before production!
-            if (email === 'demo@ubago.com') {
-                console.log("Entering Demo Mode");
-                setUser({
-                    uid: 'demo_user_123',
-                    nombre: 'Usuario Demo',
-                    telefono: '0000000000',
-                    role: 'passenger', // Default to passenger
-                    ubicacion_actual: { latitude: 5.3086, longitude: -73.8153 }
-                });
-                setLoading(false);
-                return;
-            } else if (email === 'driver@ubago.com') {
-                console.log("Entering Demo Driver Mode");
-                setUser({
-                    uid: 'demo_driver_123',
-                    nombre: 'Conductor Demo',
-                    telefono: '0000000000',
-                    role: 'driver',
-                    ubicacion_actual: { latitude: 5.3086, longitude: -73.8153 }
-                });
-                setLoading(false);
-                return;
-            }
-
             throw error; // Re-throw to be handled by UI
         } finally {
             // Loading state will be set to false in onAuthStateChanged or here if error matches
@@ -110,7 +102,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         setLoading(true);
         try {
-            const { GoogleAuthProvider, signInWithCredential } = await import('firebase/auth');
             const credential = GoogleAuthProvider.credential(idToken);
             await signInWithCredential(auth, credential);
         } catch (error: any) {
