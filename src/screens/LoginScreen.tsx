@@ -1,16 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Image, StatusBar as RNStatusBar } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Alert, StatusBar as RNStatusBar } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import { StatusBar } from 'expo-status-bar';
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
 import { makeRedirectUri } from 'expo-auth-session';
-import Constants, { AppOwnership } from 'expo-constants';
+import Constants from 'expo-constants';
+import * as Linking from 'expo-linking';
 
 // TODO: REPLACE THESE WITH YOUR ACTUAL CLIENT IDS FROM GOOGLE CLOUD CONSOLE
 // https://console.cloud.google.com/apis/credentials
 const GOOGLE_CLIENT_IDS = {
-    web: 270078019676-geincph1lvrine2malqg0me12ufc2p4m.apps.googleusercontent.com',
+    web: '270078019676-geincph1lvrine2malqg0me12ufc2p4m.apps.googleusercontent.com',
     android: '270078019676-c4g1pmo3he60308auq91cj5e81rb746o.apps.googleusercontent.com',
     ios: '270078019676-aqjvdftmqteg8intmp0a8aqih6dkqotm.apps.googleusercontent.com',
 };
@@ -22,33 +23,40 @@ export default function LoginScreen() {
     const [password, setPassword] = useState('');
     const { login, signInWithGoogle, loading } = useAuth();
 
-    // Detect if running in Expo Go
-    const isExpoGo = Constants.appOwnership === 'expo';
-
-    // Generate Redirect URI
-    // In Expo Go, we needs to use the Expo Proxy (https://auth.expo.io) because Google blocks "exp://"
-    const proxyUri = `https://auth.expo.io/@${Constants.expoConfig?.owner || 'juansebastianrodriguezoviedo1'}/${Constants.expoConfig?.slug || 'ubago'}`;
-
-    const finalRedirectUri = isExpoGo ? proxyUri : undefined;
-
-    // Log the URI so the user can add it to Google Cloud
-    useEffect(() => {
-        if (isExpoGo) {
-            // Delay slightly to ensure it renders
-            setTimeout(() => {
-                console.log("⚠️ ATENCIÓN: Agrega esta URI a Google Cloud:", proxyUri);
-            }, 1000);
-        }
-    }, [isExpoGo, proxyUri]);
+    const returnUrl = Linking.createURL('/');
+    const redirectUri = `https://auth.expo.io/@juansebastianrodriguezoviedo1/ubago?returnUrl=${encodeURIComponent(returnUrl)}`;
 
     const [request, response, promptAsync] = Google.useAuthRequest({
+        // CRITICAL FIX: When using the Proxy (https://auth.expo.io/...), we MUST use the WEB Client ID.
+        // Native Client IDs (Android/iOS) do not support HTTPS redirects, causing Error 400.
         clientId: GOOGLE_CLIENT_IDS.web,
-        // In Expo Go, we must use the Web Flow (undefined native IDs) to avoid Error 400
-        iosClientId: isExpoGo ? undefined : GOOGLE_CLIENT_IDS.ios,
-        androidClientId: isExpoGo ? undefined : GOOGLE_CLIENT_IDS.android,
-        redirectUri: finalRedirectUri,
+
+        redirectUri: redirectUri,
         scopes: ['profile', 'email'],
     });
+
+    // DEBUG: Log the full generated Auth URL
+    useEffect(() => {
+        if (redirectUri) {
+            console.log("DEBUG_REDIRECT_URI:", redirectUri);
+            Alert.alert(
+                "CONFIGURACIÓN GOOGLE",
+                "Por favor verifica que ESTA URL exacta esté en Google Cloud Console:\n\n" + redirectUri
+            );
+        }
+    }, [redirectUri]);
+
+    // DEBUG: Log the full generated Auth URL
+    useEffect(() => {
+        if (request?.url) {
+            console.log("DEBUG_URL_FINAL:", request.url);
+            // Alert uses React Native Alert module
+            Alert.alert(
+                "DEBUG INFO",
+                "Se generó la URL de conexión. Revisa el terminal negro (PC) o copia esto si puedes: " + request.url.substring(0, 50) + "..."
+            );
+        }
+    }, [request]);
 
     useEffect(() => {
         if (response?.type === 'success') {
@@ -57,12 +65,12 @@ export default function LoginScreen() {
                 // Prevent crash if signInWithGoogle fails internally
                 signInWithGoogle(id_token).catch(err => {
                     console.error("Google Sign In Wrapper Error:", err);
-                    alert("Error iniciando sesión con Google. Intenta de nuevo.");
+                    Alert.alert("Error", "Error iniciando sesión con Google. Intenta de nuevo.");
                 });
             }
         } else if (response?.type === 'error') {
             console.error("Google Auth Session Error:", response.error);
-            alert("Error en la conexión con Google.");
+            Alert.alert("Error", "Error en la conexión con Google.");
         }
     }, [response]);
 
@@ -80,7 +88,7 @@ export default function LoginScreen() {
         const cleanPass = password.trim();
 
         if (!cleanEmail || !cleanPass) {
-            alert("Por favor ingresa email y contraseña.");
+            Alert.alert("Faltan datos", "Por favor ingresa email y contraseña.");
             return;
         }
 
@@ -161,9 +169,7 @@ export default function LoginScreen() {
                     <Text style={styles.terms}>
                         ¿No tienes cuenta? <Text style={styles.link}>Regístrate</Text> (Próximamente)
                     </Text>
-                    <Text style={styles.terms}>
-                        Demo: demo@ubago.com / driver@ubago.com
-                    </Text>
+
                 </View>
             </KeyboardAvoidingView>
         </View>
@@ -212,7 +218,7 @@ const styles = StyleSheet.create({
         letterSpacing: -1,
     },
     titleAccent: {
-        color: '#00D084',
+        color: '#00D084', // Mint green accent if needed
     },
     subtitle: {
         color: '#888',

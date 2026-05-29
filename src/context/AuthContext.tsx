@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User } from '../types';
 import { FirestoreService } from '../services/firestore.service';
-import { signInWithEmailAndPassword, onAuthStateChanged, User as FirebaseUser, GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
+import { signInWithEmailAndPassword, onAuthStateChanged, User as FirebaseUser, GoogleAuthProvider, signInWithCredential, createUserWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../config/firebase';
 
 interface AuthContextType {
@@ -80,11 +80,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } catch (error: any) {
             console.warn("Login Error:", error);
 
-            if (error.code === 'auth/admin-restricted-operation' || error.code === 'auth/operation-not-allowed') {
+            if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+                // Registrar automáticamente como usuario de pruebas si no existe el correo
+                try {
+                    console.log("Usuario no encontrado, intentando auto-registro...");
+                    await createUserWithEmailAndPassword(auth, email, pass);
+                    return;
+                } catch (regError: any) {
+                    console.error("Auto-registration error:", regError);
+                    if (regError.code === 'auth/weak-password') {
+                        alert("⚠️ La contraseña debe tener al menos 6 caracteres para registrar tu nueva cuenta.");
+                    } else {
+                        alert("⚠️ Credenciales incorrectas o error al crear tu nueva cuenta.");
+                    }
+                    throw regError;
+                }
+            } else if (error.code === 'auth/admin-restricted-operation' || error.code === 'auth/operation-not-allowed') {
                 alert("⚠️ ERROR DE CONFIGURACIÓN FIREBASE:\n\nDebes habilitar 'Email/Password' en la Consola de Firebase -> Authentication -> Sign-in method.\n\nTambién revisa que no haya restricciones de Admin.");
             } else if (error.code === 'auth/invalid-email') {
                 alert("⚠️ Email inválido. Verifica que no haya espacios extra.");
-            } else if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+            } else {
                 alert("⚠️ Credenciales incorrectas. Intenta de nuevo o verifica si el usuario existe.");
             }
 
