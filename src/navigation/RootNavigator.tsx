@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import LoginPhone from '../screens/LoginScreen'; // Renamed for simplicity
 import BottomTabNavigator from './BottomTabNavigator';
 import DriverNavigator from './DriverNavigator';
+import RegisterBusinessScreen from '../screens/business/RegisterBusinessScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -24,6 +25,10 @@ export default function RootNavigator() {
                 ) : (
                     <Stack.Screen name="App" component={BottomTabNavigator} />
                 )
+            )}
+            {/* Common Authenticated Screens */}
+            {isAuthenticated && (
+                <Stack.Screen name="RegisterBusiness" component={RegisterBusinessScreen} options={{ presentation: 'modal' }} />
             )}
         </Stack.Navigator>
     );

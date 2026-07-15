@@ -1,9 +1,11 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Image, ScrollView } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { StatusBar } from 'expo-status-bar';
 
 export default function Perfil() {
+    const navigation = useNavigation();
     const { logout, user } = useAuth();
 
     return (
@@ -53,6 +55,14 @@ export default function Perfil() {
                             <Text style={[styles.optionText, { color: '#00D084' }]}>Convertirme en Conductor</Text>
                         </TouchableOpacity>
                     )}
+
+                    <TouchableOpacity
+                        style={[styles.option, { borderColor: '#FFD700', backgroundColor: 'rgba(255, 215, 0, 0.1)', marginTop: 12 }]}
+                        onPress={() => navigation.navigate('RegisterBusiness' as never)}
+                    >
+                        <Text style={styles.optionIcon}>🏪</Text>
+                        <Text style={[styles.optionText, { color: '#FFD700' }]}>Registrar mi Negocio</Text>
+                    </TouchableOpacity>
                 </View>
 
                 <TouchableOpacity onPress={logout} style={styles.logoutButton}>

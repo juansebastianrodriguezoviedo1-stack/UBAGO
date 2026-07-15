@@ -20,7 +20,7 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Driver Listeners
     useEffect(() => {
-        if (user?.rol === 'driver') {
+        if (user?.role === 'driver') {
             const unsubscribe = FirestoreService.listenToActiveRides((rides) => {
                 setAvailableRides(rides);
             });

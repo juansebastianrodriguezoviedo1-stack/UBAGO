@@ -39,7 +39,7 @@ const ActiveTripScreen = () => {
                         text: "Finalizar",
                         onPress: () => {
                             setStatus('COMPLETED');
-                            navigation.replace('RatePassenger' as never); // Navigate to rating
+                            (navigation as any).replace('RatePassenger'); // Navigate to rating
                         }
                     }
                 ]

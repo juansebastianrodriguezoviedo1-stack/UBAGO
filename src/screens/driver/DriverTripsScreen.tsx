@@ -105,7 +105,7 @@ const DriverTripsScreen = () => {
                 acceptedAt: serverTimestamp()
             });
             // Navigating away automatically hides modal as component unmounts or state resets
-            navigation.navigate('ActiveTrip' as never, { tripId: incomingTrip.id } as never);
+            (navigation as any).navigate('ActiveTrip', { tripId: incomingTrip.id });
             setIncomingTrip(null); // Clear local state to prevent modal waiting
         } catch (error) {
             console.error("Error accepting trip: ", error);

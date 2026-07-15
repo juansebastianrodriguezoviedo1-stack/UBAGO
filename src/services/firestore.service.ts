@@ -9,14 +9,38 @@ import {
     query,
     where,
     onSnapshot,
-    serverTimestamp
+    serverTimestamp,
+    orderBy,
+    getDocs,
+    getCountFromServer
 } from 'firebase/firestore';
-import { User, Ride, UserRole } from '../types';
+import { User, Ride, Restaurant, MenuItem, FoodOrder, CommissionEntry } from '../types';
 
 export const FirestoreService = {
-    // Users
+    // ==========================================
+    // USERS (Drivers & Passengers)
+    // ==========================================
     createUser: async (user: User) => {
-        await setDoc(doc(db, 'users', user.uid), user);
+        await setDoc(doc(db, 'users', user.uid), {
+            ...user,
+            isActive: true, // Default to active
+            lastLogin: serverTimestamp(),
+            createdAt: serverTimestamp()
+        });
+    },
+
+    updateUserLogin: async (uid: string) => {
+        const userRef = doc(db, 'users', uid);
+        await updateDoc(userRef, {
+            lastLogin: serverTimestamp(),
+            isActive: true
+        });
+    },
+
+    getActiveUsersCount: async (): Promise<number> => {
+        const q = query(collection(db, 'users'), where('isActive', '==', true));
+        const snapshot = await getCountFromServer(q);
+        return snapshot.data().count;
     },
 
     getUser: async (uid: string): Promise<User | null> => {
@@ -32,28 +56,38 @@ export const FirestoreService = {
         await updateDoc(userRef, { ubicacion_actual: location });
     },
 
-    // Rides
+    updateUser: async (uid: string, data: Partial<User>) => {
+        const userRef = doc(db, 'users', uid);
+        await updateDoc(userRef, data);
+    },
+
+    // ==========================================
+    // RIDES (Mobility)
+    // ==========================================
     createRide: async (ride: Omit<Ride, 'id' | 'timestamp' | 'estado'>) => {
         const rideData = {
             ...ride,
-            estado: 'pending',
+            status: 'pending', // Default status
+            estado: 'pending', // Legacy support
             timestamp: serverTimestamp()
         };
         const docRef = await addDoc(collection(db, 'rides'), rideData);
         return docRef.id;
     },
 
-    updateRideStatus: async (rideId: string, status: Ride['estado'], driverId?: string) => {
+    updateRideStatus: async (rideId: string, status: Ride['status'], driverId?: string) => {
         const rideRef = doc(db, 'rides', rideId);
-        const updateData: any = { estado: status };
-        if (driverId) updateData.conductorId = driverId;
+        const updateData: any = {
+            status: status,
+            estado: status // Legacy sync
+        };
+        if (driverId) updateData.driverId = driverId;
 
         await updateDoc(rideRef, updateData);
     },
 
-    // Listeners
     listenToActiveRides: (callback: (rides: Ride[]) => void) => {
-        const q = query(collection(db, 'rides'), where('estado', '==', 'pending'));
+        const q = query(collection(db, 'rides'), where('status', '==', 'pending'));
         return onSnapshot(q, (snapshot) => {
             const rides = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Ride));
             callback(rides);
@@ -66,37 +100,78 @@ export const FirestoreService = {
                 callback({ id: doc.id, ...doc.data() } as Ride);
             }
         });
+    },
 
-         // Food Orders
- createFoodOrder: async (order: any) => {
- const orderData = {
- ...order,
- estado: 'pendiente',
- timestamp: serverTimestamp()
- };
- const docRef = await addDoc(collection(db, 'food_orders'), orderData);
- return docRef.id;
- },
+    // ==========================================
+    // RESTAURANTS & FOOD
+    // ==========================================
+    registerRestaurant: async (restaurant: Omit<Restaurant, 'id' | 'isApproved'>) => {
+        const newRest: any = {
+            ...restaurant,
+            isApproved: false, // Default requires admin approval
+            status: 'closed',
+            createdAt: serverTimestamp()
+        };
+        const docRef = await addDoc(collection(db, 'restaurants'), newRest);
+        return docRef.id;
+    },
 
- updateFoodOrderStatus: async (orderId: string, status: string) => {
- const orderRef = doc(db, 'food_orders', orderId);
- await updateDoc(orderRef, { estado: status });
- },
+    getRestaurants: async (): Promise<Restaurant[]> => {
+        const q = query(collection(db, 'restaurants'), where('isApproved', '==', true));
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Restaurant));
+    },
 
- listenToFoodOrders: (userId: string, callback: (orders: any[]) => void) => {
- const q = query(collection(db, 'food_orders'), where('userId', '==', userId));
- return onSnapshot(q, (snapshot) => {
- const orders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
- callback(orders);
- });
- },
+    createMenuItem: async (restaurantId: string, item: Omit<MenuItem, 'id'>) => {
+        const menuRef = collection(db, 'restaurants', restaurantId, 'menu');
+        await addDoc(menuRef, item);
+    },
 
- listenToFoodOrderUpdates: (orderId: string, callback: (order: any) => void) => {
- return onSnapshot(doc(db, 'food_orders', orderId), (doc) => {
- if (doc.exists()) {
- callback({ id: doc.id, ...doc.data() });
- }
- });
- }
+    getMenu: async (restaurantId: string): Promise<MenuItem[]> => {
+        const menuRef = collection(db, 'restaurants', restaurantId, 'menu');
+        const snapshot = await getDocs(menuRef);
+        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as MenuItem));
+    },
+
+    createFoodOrder: async (order: Omit<FoodOrder, 'id' | 'timestamp'>) => {
+        const orderData = {
+            ...order,
+            status: 'new',
+            timestamp: serverTimestamp()
+        };
+        const docRef = await addDoc(collection(db, 'food_orders'), orderData);
+        return docRef.id;
+    },
+
+    listenToFoodOrders: (userId: string, callback: (orders: FoodOrder[]) => void) => {
+        const q = query(collection(db, 'food_orders'), where('userId', '==', userId), orderBy('timestamp', 'desc'));
+        return onSnapshot(q, (snapshot) => {
+            const orders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FoodOrder));
+            callback(orders);
+        });
+    },
+
+    // ==========================================
+    // COMMISSIONS & FINANCE
+    // ==========================================
+    recordCommission: async (entry: Omit<CommissionEntry, 'id' | 'createdAt'>) => {
+        await addDoc(collection(db, 'commissions'), {
+            ...entry,
+            createdAt: serverTimestamp()
+        });
+    },
+
+    getPendingCommissions: async (targetUid: string): Promise<number> => {
+        const q = query(
+            collection(db, 'commissions'),
+            where('targetUid', '==', targetUid),
+            where('status', '==', 'pending')
+        );
+        const snapshot = await getDocs(q);
+        let total = 0;
+        snapshot.forEach(doc => {
+            total += doc.data().amount || 0;
+        });
+        return total;
     }
 };
